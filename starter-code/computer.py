@@ -90,9 +90,7 @@ def decide_on_action():
     action = request.args.get('action')
     action = convert_string_dict(action)
     decided = myComputer.decide_on_action(action)
-    # print("HEHEHEH")
-    # print(decided)
-    # exit()
+
     return str(decided)
 
 def convert_0_bool(action):
@@ -128,7 +126,7 @@ def acceptable_action():
 @app.route("/" + str(myId) + "/sample_next_action")
 def sample_action():
     if myComputer.sample_next_action() == None:
-        return None
+        return 'None'
     return str(myComputer.sample_next_action())
 
 

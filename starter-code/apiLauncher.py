@@ -48,6 +48,8 @@ def decide_on_state(fc, state):
 def sample_next_action(fc):
 
     r = requests.get(url=URL(fc) + str(fc) + "/sample_next_action")
+    if r.text == "None":
+        return None
     result = r.text
     result = result.replace("'", "\"")
     # Since False = 0 its ok

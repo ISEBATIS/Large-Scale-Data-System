@@ -77,8 +77,8 @@ class FlightComputer:
         action = {"pitch": 90, "throttle": 1.0, "heading": 90,
                   "stage": False, "next_state": False}
         if self.state["altitude"] >= 1000:
-            print("I m entering here")
-            exit()
+            # print("I m entering here")
+            # exit()
             action["pitch"] = 80
             action["next_stage"] = True
 
@@ -191,7 +191,7 @@ class FlightComputer:
 
         return decided
 
-    def acceptable_state(self, state): # TODO: check if this is the leader
+    def acceptable_state(self, state): 
         return True
 
     def acceptable_action(self, action):
@@ -213,6 +213,8 @@ class FlightComputer:
             self.stage_handler = self.stage_handlers[self.current_stage_index]
 
     def deliver_state(self, state):
+        # print("I am here, this is great")
+        # exit()
         self.state = state
 
 

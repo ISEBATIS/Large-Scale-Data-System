@@ -18,11 +18,12 @@ timestep = 0
 currentId = 0
 currentEpoch = 0
 
+
 # Argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument("--correct-fraction", type=float, default=1.0,
                     help="Fraction of correct flight computers (default 1.0).")
-parser.add_argument("--flight-computers", type=int, default=2,
+parser.add_argument("--flight-computers", type=int, default=3,
                     help="Number of flight computers (default: 1).")
 arguments, _ = parser.parse_known_args()
 
@@ -46,7 +47,8 @@ def convert_0_bool(action):
     # print(action)
 
 def execute_action(action):
-    convert_0_bool(action)
+    # convert_0_bool(action)
+    print(timestep)
     print(action)
     print(actions[timestep])
     for k in action.keys():
@@ -117,7 +119,6 @@ try:
         timestep += 1
         state = readout_state()
         leader = select_leader()
-        print(leader)
         state_decided = decide_on_state(leader, state)
         if not state_decided:
             # print("N'importe quoi")
