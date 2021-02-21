@@ -44,10 +44,8 @@ def convert_0_bool(action):
     else :
         action['next_state'] = True
     
-    # print(action)
 
 def execute_action(action):
-    # convert_0_bool(action)
     print(timestep)
     print(action)
     print(actions[timestep])
@@ -65,11 +63,11 @@ def allocate_flight_computers(arguments):
     state = readout_state()
     for _ in range(n_correct_fc):
         currentId += 1
-        flight_computers.append(init_computer(state, currentId))
+        flight_computers.append(init_computer(state, currentId, 'normal'))
 
-    # for _ in range(n_incorrect_fc):
-            # currentId += 1
-    #     flight_computers.append(allocate_random_flight_computer(state)) # TODO: Make for random_flight
+    for _ in range(n_incorrect_fc):
+        currentId += 1
+        flight_computers.append(init_computer(state, currentId, 'random'))
     # Add the peers for the consensus protocol
     for fc in flight_computers:
         for peer in flight_computers:
@@ -93,20 +91,17 @@ def select_leader():
     if currentEpoch == len(flight_computers):
         currentEpoch = 0
 
-    # leader_index = np.random.randint(0, len(flight_computers))
 
     return flight_computers[leader_index]
 
 
 def next_action(state):
     leader = select_leader()
-    state_decided = decide_on_state(leader, state)  # asks leader's state ?
-    # print(state_decided)
+    state_decided = decide_on_state(leader, state)  
     if not state_decided:
         return None
     action = sample_next_action(leader)
     action_decided = decide_on_action(leader, action)
-    # exit()
     if action_decided:
         return action
 
@@ -121,7 +116,6 @@ try:
         leader = select_leader()
         state_decided = decide_on_state(leader, state)
         if not state_decided:
-            # print("N'importe quoi")
             continue
         action = sample_next_action(leader)
         if action is None:

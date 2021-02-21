@@ -6,49 +6,62 @@ import requests
 
 URL_IP = "http://127.0.0.1:"
 STARTING_URL = 4999
+TIMEOUT_VALUE = 5
 
 
 def URL(fc):
-    return URL_IP + str(STARTING_URL + fc) + "/" 
+    return URL_IP + str(STARTING_URL + fc) + "/"
 
 # ------------------------------ decide on state ----------------------------- #
 
-def query_acceptable_state(fc, state):
-    # TODO check is the timeout
 
-    r = requests.get(url=URL(fc) + str(fc) + "/acceptable_state",
-                     params={"state": str(state)})
+def query_acceptable_state(fc, state):
+
+    r = None
+
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/acceptable_state",
+                         params={"state": str(state)}, timeout=TIMEOUT_VALUE)
+    except Exception as _:
+        print("Computer reached " + str(fc) + ' reached time out')
+        return False
+
     if r.text == "True":
         return True
     return False
 
 
 def deliver_state_others(fc, state):
-    global URL
-    r = requests.get(url=URL(fc) + str(fc) + "/deliver_state",
-                     params={"state": str(state)})
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/deliver_state",
+                         params={"state": str(state)}, timeout=TIMEOUT_VALUE)
+    except Exception as _:
+        print("Computer reached " + str(fc) + ' reached time out')
 
 
 # ----------------------------- decide on action ----------------------------- #
 
 def query_acceptable_action(fc, action):
-    # print(fc)
-    # print(action)
-    # print(URL(fc) + str(fc) + "/acceptable_action")
-    r = requests.get(url=URL(fc) + str(fc) + "/acceptable_action",
-                     params={"action": str(action)})
-    # print(r.text)
+
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/acceptable_action",
+                         params={"action": str(action)}, timeout=TIMEOUT_VALUE)
+    except Exception as _:
+        print("Computer reached " + str(fc) + ' reached time out')
+        return False
+
     if r.text == "True":
         return True
     return False
 
 
-
 def deliver_action_others(fc, action):
-    # print('I am a delivery boy')
-    r = requests.get(url=URL(fc) + str(fc) + "/deliver_action",
-                     params={"action": str(action)})
-
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/deliver_action",
+                         params={"action": str(action)}, timeout=TIMEOUT_VALUE)
+    except Exception as _:
+        print("Computer reached " + str(fc) + ' reached time out')
+        return False
 
 
 class FlightComputer:
@@ -77,8 +90,6 @@ class FlightComputer:
         action = {"pitch": 90, "throttle": 1.0, "heading": 90,
                   "stage": False, "next_state": False}
         if self.state["altitude"] >= 1000:
-            # print("I m entering here")
-            # exit()
             action["pitch"] = 80
             action["next_stage"] = True
 
@@ -161,10 +172,9 @@ class FlightComputer:
     def sample_next_action(self):
         return self.stage_handler()
 
-    def decide_on_state(self, state): # TODO check is this is a leader
+    def decide_on_state(self, state):  # TODO check is this is a leader
         acceptations = [query_acceptable_state(p, state) for p in self.peers]
-        decided = (sum(acceptations) + 1)  / (len(self.peers)+1) > 0.5
-
+        decided = (sum(acceptations) + 1) / (len(self.peers)+1) > 0.5
 
         if decided:
             for p in self.peers:
@@ -177,21 +187,14 @@ class FlightComputer:
         acceptations = [query_acceptable_action(p, action) for p in self.peers]
         decided = (sum(acceptations) + 1) / (len(self.peers) + 1) > 0.5
 
-
-
         if decided:
             for p in self.peers:
-                # print("Peers")
                 deliver_action_others(p, action)
             self.deliver_action(action)
-        # ! This is where the problem is
-        # print("Entering")
-
-        # exit()
 
         return decided
 
-    def acceptable_state(self, state): 
+    def acceptable_state(self, state):
         return True
 
     def acceptable_action(self, action):
@@ -200,21 +203,16 @@ class FlightComputer:
         for k in our_action.keys():
             if our_action[k] != action[k]:
                 accept = False
-        # print('accept')
-        # print(accept)
+
 
         return accept
 
     def deliver_action(self, action):
         if "next_stage" in action and action["next_stage"]:
-            # print('I am happy')
-            # exit()
             self.current_stage_index += 1
             self.stage_handler = self.stage_handlers[self.current_stage_index]
 
     def deliver_state(self, state):
-        # print("I am here, this is great")
-        # exit()
         self.state = state
 
 
@@ -236,7 +234,7 @@ class RandomThrottleFlightComputer(FlightComputer):
         super(RandomThrottleFlightComputer, self).__init__(state)
 
     def sample_next_action(self):
-        action = super(RandomThrottleFlightComputer, self).sample_next_action()
+        action = super().sample_next_action()
         action["throttle"] = np.random.uniform()
 
         return action
@@ -248,7 +246,7 @@ class SlowFlightComputer(FlightComputer):
         super(SlowFlightComputer, self).__init__(state)
 
     def sample_next_action(self):
-        action = super(SlowFlightComputer, self).sample_next_action()
+        action = super().sample_next_action()
         time.sleep(np.random.uniform() * 10)  # Seconds
 
         return action
@@ -260,12 +258,11 @@ class CrashingFlightComputer(FlightComputer):
         super(CrashingFlightComputer, self).__init__(state)
 
     def sample_next_action(self):
-        action = super(SlowFlightComputer, self).sample_next_action()
+        action = super().sample_next_action()
         # 1% probability of a crash
-        if np.random.unifom() <= 0.01:
-            raise Exception("Flight computer crashed")
-
-        return action
+        if np.random.uniform() > 0.01:
+            return action
+        time.sleep(TIMEOUT_VALUE+1)
 
 
 def allocate_random_flight_computer(state):

@@ -6,11 +6,16 @@ import json
 import requests
 from computers import *
 
+# * disable th next 3 lines to have the code to be print in the terminal of the server (GET ...)
+import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
 
 
 def convert_string_dict(string):
     acceptable_string = string.replace("'", "\"")
-    
+
     return json.loads(acceptable_string)
 
 
@@ -19,6 +24,10 @@ if len(sys.argv) <= 1:
     print("You should give a computer number as argument")
     exit(1)
 app = Flask(__name__)
+
+
+
+
 
 myId = sys.argv[1]
 myComputer = None
@@ -29,7 +38,6 @@ myComputer = None
 URL = "http://127.0.0.1:" + str(4999 + int(myId)) + "/"
 
 
-
 # ------------------------------ init computers ------------------------------ #
 
 @app.route("/" + str(myId) + "/initComputer")
@@ -38,17 +46,23 @@ def initComputer():
 
     state = request.args.get('state')
     state = convert_string_dict(state)
+    typeComputer = request.args.get('type')
 
-    myComputer = FlightComputer(state)
+    myComputer = None
+    if typeComputer == 'random':
+        myComputer = allocate_random_flight_computer(state)
+    else :
+        myComputer = FlightComputer(state)
+
+    
     return "Ok"
 
 
 @app.route('/' + myId + '/add_peer')
-def app_peer():
+def add_peer():
     global myComputer
     myComputer.add_peer(int(request.args.get('peer')))
     return "Ok"
-
 
 
 # ------------------------------ decide on state ----------------------------- #
@@ -61,7 +75,6 @@ def decide_on_state():
     state = convert_string_dict(state)
     decided = myComputer.decide_on_state(state)
 
-
     return str(decided)
 
 
@@ -70,6 +83,7 @@ def acceptable_state():
     state = request.args.get('state')
     state = convert_string_dict(state)
     return str(myComputer.acceptable_state(state))
+
 
 @app.route("/" + str(myId) + "/deliver_state")
 def deliver_state_myself():
@@ -82,7 +96,6 @@ def deliver_state_myself():
     return 'ok'
 
 
-
 # ----------------------------- decide on action ----------------------------- #
 
 @app.route("/" + str(myId) + "/decide_on_action")
@@ -93,20 +106,18 @@ def decide_on_action():
 
     return str(decided)
 
+
 def convert_0_bool(action):
     if action['stage'] == 0:
         action['stage'] = False
-    else :
+    else:
         action['stage'] = True
-    
+
     if action['next_state'] == 0:
         action['next_state'] = False
-    else :
+    else:
         action['next_state'] = True
-    
-    # print(action)
-    
-    
+
 
 
 @app.route("/" + str(myId) + "/acceptable_action")
@@ -116,12 +127,11 @@ def acceptable_action():
     convert_0_bool(action)
 
     answer = myComputer.acceptable_action(action)
-    # print('acceptable answer')
-    # print(answer)
 
     return str(answer)
 
 # ----------------------------- sample on action ----------------------------- #
+
 
 @app.route("/" + str(myId) + "/sample_next_action")
 def sample_action():
@@ -132,19 +142,12 @@ def sample_action():
 
 @app.route("/" + str(myId) + "/deliver_action")
 def deliver_action_myself():
-    # print("I am delivering")
     action = request.args.get('action')
-    # print("I still deliver")
     action = convert_string_dict(action)
-    # print("I am still deliver")
 
     myComputer.deliver_action(action)
-    # time.sleep(20)
+
     return 'ok'
-
-
-
-
 
 
 # myId starts at 1.
