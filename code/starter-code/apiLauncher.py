@@ -3,7 +3,7 @@ import json
 import time
 URL_IP = "http://127.0.0.1:"
 STARTING_URL = 4999
-TIMEOUT_VALUE = 5
+TIMEOUT_VALUE = 300 / 1000 # 300 ms
 
 def URL(fc):
     return URL_IP + str(STARTING_URL + fc) + "/"
@@ -21,7 +21,7 @@ def init_computer(state, currentId, typeComputer):
     
     r = requests.get(url=URL(currentId) + str(currentId) +
                      str("/initComputer"), params={'state': str(state),
-                                                   'type': typeComputer})
+                                                   'type': str(typeComputer)})
     return currentId
 
 
@@ -90,3 +90,47 @@ def decide_on_action(fc, action):
     if r.text == "True":
         return True
     return False
+
+
+
+# ask the leader of 'fc' fligh computer
+def ask_leader(fc):
+    r = None
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/who_is_leader", timeout=TIMEOUT_VALUE)
+    except Exception as _:
+        print("Computer "  + str(fc) + ' did not replied')
+    
+    if r == None:
+        return -1
+    
+    return int(r.text)
+
+
+
+# --------------------------- ask who is the leader -------------------------- #
+def select_leader(number_computers):
+    #  votedFor[i] = k if the computer i+1 is trusted to be the leader by k computers
+    votedFor = [0] * number_computers
+    
+    for fc in range(1, number_computers + 1):
+        trusted_leader = ask_leader(fc)
+        if trusted_leader == -1:
+            continue
+        
+        votedFor[trusted_leader-1] += 1
+    
+
+    for fc, votes in enumerate(votedFor):
+        # If we have a strict majority then votes is the leader
+        if votes >= floor(number_computers / 2) + 1:
+            return fc + 1
+    
+    return 1
+
+
+
+
+
+
+

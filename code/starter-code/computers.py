@@ -6,11 +6,13 @@ import requests
 
 URL_IP = "http://127.0.0.1:"
 STARTING_URL = 4999
-TIMEOUT_VALUE = 5
+TIMEOUT_VALUE = 300/1000   # ms
 
 
 def URL(fc):
     return URL_IP + str(STARTING_URL + fc) + "/"
+
+import api.Computer
 
 # ------------------------------ decide on state ----------------------------- #
 
@@ -172,7 +174,7 @@ class FlightComputer:
     def sample_next_action(self):
         return self.stage_handler()
 
-    def decide_on_state(self, state):  # TODO check is this is a leader
+    def decide_on_state(self, state):
         acceptations = [query_acceptable_state(p, state) for p in self.peers]
         decided = (sum(acceptations) + 1) / (len(self.peers)+1) > 0.5
 
@@ -204,7 +206,6 @@ class FlightComputer:
             if our_action[k] != action[k]:
                 accept = False
 
-
         return accept
 
     def deliver_action(self, action):
@@ -234,7 +235,7 @@ class RandomThrottleFlightComputer(FlightComputer):
         super(RandomThrottleFlightComputer, self).__init__(state)
 
     def sample_next_action(self):
-        action = super().sample_next_action()
+        action = super(RandomThrottleFlightComputer, self).sample_next_action()
         action["throttle"] = np.random.uniform()
 
         return action
@@ -246,8 +247,8 @@ class SlowFlightComputer(FlightComputer):
         super(SlowFlightComputer, self).__init__(state)
 
     def sample_next_action(self):
-        action = super().sample_next_action()
-        time.sleep(np.random.uniform() * 10)  # Seconds
+        action = super(SlowFlightComputer, self).sample_next_action()
+        time.sleep(np.random.uniform() * 10) # Seconds
 
         return action
 
@@ -258,11 +259,13 @@ class CrashingFlightComputer(FlightComputer):
         super(CrashingFlightComputer, self).__init__(state)
 
     def sample_next_action(self):
-        action = super().sample_next_action()
+        action = super(SlowFlightComputer, self).sample_next_action()
         # 1% probability of a crash
-        if np.random.uniform() > 0.01:
-            return action
-        time.sleep(TIMEOUT_VALUE+1)
+        if np.random.unifom() <= 0.01:
+            raise Exception("Flight computer crashed")
+
+        return action
+
 
 
 def allocate_random_flight_computer(state):

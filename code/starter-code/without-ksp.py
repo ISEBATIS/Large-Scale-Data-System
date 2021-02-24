@@ -16,7 +16,6 @@ actions = pickle.load(open("data/actions.pickle", "rb"))
 states = pickle.load(open("data/states.pickle", "rb"))
 timestep = 0
 currentId = 0
-currentEpoch = 0
 
 
 # Argument parsing
@@ -79,22 +78,8 @@ def allocate_flight_computers(arguments):
 
 # Connect with Kerbal Space Program
 flight_computers = allocate_flight_computers(arguments)
-
-
-def select_leader():
-    global currentEpoch
-
-    leader_index = currentEpoch
-
-    currentEpoch += 1
-
-    if currentEpoch == len(flight_computers):
-        currentEpoch = 0
-
-
-    return flight_computers[leader_index]
-
-
+exit()
+    
 def next_action(state):
     leader = select_leader()
     state_decided = decide_on_state(leader, state)  
@@ -113,7 +98,7 @@ try:
     while not complete:
         timestep += 1
         state = readout_state()
-        leader = select_leader()
+        leader = select_leader(len(flight_computers))
         state_decided = decide_on_state(leader, state)
         if not state_decided:
             continue
