@@ -126,9 +126,13 @@ def select_leader(number_computers):
         if votes >= floor(number_computers / 2) + 1:
             return fc + 1
     
-    return 1
+    return -1
+
+    ''' 
+        The client should not care about who is the leader. He should just take 
 
 
+    '''
 
 
 

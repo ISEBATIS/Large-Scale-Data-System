@@ -4,13 +4,18 @@ import random as rand
 from enum import Enum
 import requests
 import signal
+import threading
+
 
 MINIMAL_TIMEOUT = 0.0001  # used to not wait the response of the server
 
 
 URL_IP = "http://127.0.0.1:"
-STARTING_URL = 4999 # More the starting port
+STARTING_URL = 4999  # More the starting port
 TIMEOUT_VALUE = 300/1000   # ms
+
+# Lock for not beginning a new election while i got a message
+lock = threading.Lock()
 
 
 def URL(fc):
@@ -27,7 +32,7 @@ class State(Enum):
 class Computer:
     def __init__(self, flighComputer, myComputerNumber):
         self.flighComputer = flighComputer
-        self.myComputerNumber = myComputerNumber
+        self.myComputerNumber = myComputerNumber    # can see it as IP address
         # state can be follower, candidate, or leader
         self.state = State.follower
         # similar to the period in raft
@@ -40,64 +45,77 @@ class Computer:
         self.trusted_leader = None
 
         # set timeout leader
-        self.set_timeout_leader()
+        Computer.set_timeout_leader()
 
-    def init_signal(self):
-        signal.signal(signal.SIGALRM, self.begin_new_election)
 
-    # trigerred by the timeout
-    def begin_new_election(self, signum, frame):
-        # become a candidate and try to be leader
-        self.state = state.candidate
+    def begin_new_election(self):
+        
+        with lock:
+            # become a candidate and try to be leader
+            self.state = State.candidate
 
-        self.term += 1
+            self.term += 1
 
-        # init the vote counter
-        self.votes_against_me = 0
-        # Vote for myself
-        self.votes_for_me = 1
+            # init the vote counter
+            self.votes_against_me = 0
+            self.votes_for_me = 1
+            # Vote for myself
+            # self.receive_vote()
 
-        # time to broadcast the messages
-        self.set_timer(300)
+            # time to broadcast the messages
+            Computer.set_timer(300)
 
-        # ask cluster' s votes
-        self.broadcast_vote_request()
+            # ask cluster' s votes
+            self.broadcast_vote_request()
 
     # We received a vote for us
     def receive_vote(self):
         self.votes_for_me += 1
 
         # I have a strict majority
-        if self.votes_for_me >= floor(len(self.flighComputer.peers) / 2) + 1:
+        if self.votes_for_me >= floor((len(self.flighComputer.peers) + 1) / 2) + 1:
+            print("I won " + str(self.term))
             self.i_won_election()
 
         # reset the timeout
-        self.set_timeout_leader()
+        Computer.set_timeout_leader()
 
     # A server gave the vote to someone else
-    def refuse_vote(self):
+    def refuse_vote(self, term):
         self.votes_against_me += 1
 
+        # Update my term if i was late
+        if term > self.term:
+            self.term == term
+
         # I lose the election
-        if self.votes_against_me >= floor(len(self.flighComputer.peers) / 2) + 1:
+        if self.votes_against_me >= floor((len(self.flighComputer.peers) + 1) / 2) + 1:
             self.state = State.follower
 
         # reset the timeout
-        self.set_timeout_leader()
+        Computer.set_timeout_leader()
 
-    def set_timeout_leader(self):
+    @staticmethod
+    def set_timeout_leader():
         # First find the duration randomly of the timeout
-        duration = rand.randint(150, 300)  # in ms
+        duration = rand.randint(200, 500)  # in ms
+        # based on the number of election exp() number of election that we lost
 
-        self.set_timer(duration)
+        Computer.set_timer(duration)
 
     # set a timer in the duration. The duration is in ms
-    def set_timer(self, duration):
+    @staticmethod
+    def set_timer(duration):
         signal.setitimer(signal.ITIMER_REAL, duration/1000, 0)
+    
+    @staticmethod
+    def set_timeout_heartbeat():
+        signal.setitimer(signal.ITIMER_REAL, 50/1000, 0)
+
 
     # self won the elections
-
     def i_won_election(self):
+
         self.state = State.leader
         self.start_sending_ack()
         self.start_sending_heartbeat()
@@ -138,24 +156,30 @@ class Computer:
         self.state = State.follower
         self.trusted_leader = fc
         self.term = term
-        self.set_timeout_leader()
+        Computer.set_timeout_leader()
 
     def start_sending_heartbeat(self):
         for fc in self.flighComputer.peers:
-            requests.get(url=URL(fc) + str(fc) + "/heartbeat",
-                         params={"term": str(self.term),
-                                 "fc": str(self.myComputerNumber)},
-                         timeout=MINIMAL_TIMEOUT)
+            try:
+                requests.get(url=URL(fc) + str(fc) + "/heartbeat",
+                             params={"term": str(self.term),
+                                     "fc": str(self.myComputerNumber)},
+                             timeout=MINIMAL_TIMEOUT)
+            except Exception:
+                pass
+            
+        Computer.set_timeout_heartbeat()
+
 
     def received_heartbeat(self, term, fc):
 
         self.trusted_leader = fc
         self.term = term
 
-        self.set_timeout_leader()
+        Computer.set_timeout_leader()
 
     def stop_timeout(self):
-        self.set_timer(0)
+        Computer.set_timer(0)
 
     def send_vote(self, fc):
         try:

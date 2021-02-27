@@ -5,7 +5,6 @@ import sys
 import json
 import requests
 from computers import *
-
 import api.leader_election
 import api.ComputerApi
 from api.Computer import *
@@ -33,6 +32,27 @@ myId = sys.argv[1]
 myComputer = None
 
 
+def handler_signal(signum, frame):
+
+    if myComputer == None:
+        Computer.set_timer(rand.randint(100, 300))
+        print("Computer has not started yet")
+        return
+
+
+    # the interrupt was trigerred to send heartbeat
+    if myComputer.trusted_leader ==  myComputer.myComputerNumber:
+        print("I am leader")
+        myComputer.start_sending_heartbeat()
+        return
+
+    myComputer.begin_new_election()
+
+
+# init the signal handler
+signal.signal(signal.SIGALRM, handler_signal)
+
+
 # ------------------------------ init computers ------------------------------ #
 
 @app.route("/" + str(myId) + "/initComputer")
@@ -51,15 +71,11 @@ def initComputer():
 
     # I create the computer that will manage the consensus
     myComputer = Computer(flightComputer, myId)
-    myComputer.init_signal()
-    print(myComputer)
-    exit()
     return "Ok"
 
 
 @app.route('/' + myId + '/add_peer')
 def add_peer():
-    global myComputer
     myComputer.flighComputer.add_peer(int(request.args.get('peer')))
     return "Ok"
 
@@ -70,53 +86,73 @@ def vote_request():
     term = int(request.args.get('term'))
     fc = int(request.args.get("fc"))
 
-    if myComputer.term < term:
-        # We update reset the timeout
-        myComputer.set_timeout_leader()
-        myComputer.term = term
-        myComputer.send_vote(fc)
-        return
+    with lock:
+        if myComputer.term < term:
+            # We update reset the timeout
+            myComputer.set_timeout_leader()
+            myComputer.term = term
+            myComputer.send_vote(fc)
+                
+            return "1"
 
-    myComputer.send_not_vote(fc)
+        myComputer.send_not_vote(fc)
+    return "1"
 
 
 # Someone voted for me
 @app.route('/' + myId + '/vote')
 def vote():
-    # I no longer want to be leader
-    if myComputer.state == State.follower:
-        return
 
-    myComputer.receive_vote()
+    with lock:    
+        # I no longer want to be leader
+        if myComputer.state == State.follower:
+            return "1"
+
+        myComputer.receive_vote()
+    return "1"
 
 # Someone voted against me
 @app.route('/' + myId + '/not_vote')
 def not_vote():
-    # I no longer want to be leader
-    if myComputer.state == State.follower:
-        return
 
-    myComputer.refuse_vote()
+    term = int(request.args.get('term'))
+    with lock:
+        # I no longer want to be leader
+        if myComputer.state == State.follower:
+            return "1"
+
+        myComputer.refuse_vote(term)
+
+    return "1"
 
 
 @app.route('/' + myId + '/new_leader')
 def new_leader():
+
     term = int(request.args.get('term'))
     fc = int(request.args.get("fc"))
 
-    # He can be leader
-    if myComputer.term <= term:
-        myComputer.new_leader(term, fc)
+    with lock:
+        # He can be leader
+        if myComputer.term <= term:
+            myComputer.new_leader(term, fc)
+
+    return "1"
 
 
 @app.route('/' + myId + '/heartbeat')
 def heartbeat():
+
+    print('heatbeat')
     term = int(request.args.get('term'))
     fc = int(request.args.get("fc"))
-
-    if fc == myComputer.trusted_leader or term > myComputer.term:
+    if fc == myComputer.trusted_leader:
         myComputer.received_heartbeat(term, fc)
+    elif term > myComputer.term:
+        print("This is the case")
+        myComputer.new_leader(term, fc)
 
+    return "1"
 
 # ------------------------------ decide on state ----------------------------- #
 
@@ -153,6 +189,7 @@ def deliver_state_myself():
 
 @app.route("/" + str(myId) + "/decide_on_action")
 def decide_on_action():
+
     action = request.args.get('action')
     action = convert_string_dict(action)
     decided = myComputer.flighComputer.decide_on_action(action)
@@ -174,6 +211,7 @@ def convert_0_bool(action):
 
 @app.route("/" + str(myId) + "/acceptable_action")
 def acceptable_action():
+
     action = request.args.get('action')
     action = convert_string_dict(action)
     convert_0_bool(action)
@@ -194,6 +232,7 @@ def sample_action():
 
 @app.route("/" + str(myId) + "/deliver_action")
 def deliver_action_myself():
+
     action = request.args.get('action')
     action = convert_string_dict(action)
 
@@ -207,6 +246,7 @@ def deliver_action_myself():
 def my_leader():
     return myComputer.trusted_leader
 
+
 # myId starts at 1.
-app.run(port=4999+int(myId), debug=False)
-print("Voiture")
+if __name__ == "__main__":
+    app.run(port=4999+int(myId), debug=False)

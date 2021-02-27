@@ -196,6 +196,7 @@ class FlightComputer:
 
         return decided
 
+    # make assumptions
     def acceptable_state(self, state):
         return True
 

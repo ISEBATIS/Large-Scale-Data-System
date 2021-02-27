@@ -99,6 +99,8 @@ try:
         timestep += 1
         state = readout_state()
         leader = select_leader(len(flight_computers))
+        if leader == None:
+            continue
         state_decided = decide_on_state(leader, state)
         if not state_decided:
             continue
