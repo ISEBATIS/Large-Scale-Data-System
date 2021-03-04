@@ -25,7 +25,6 @@ def query_acceptable_state(fc, state):
         r = requests.get(url=URL(fc) + str(fc) + "/acceptable_state",
                          params={"state": str(state)}, timeout=TIMEOUT_VALUE)
     except Exception as _:
-        print("Computer reached " + str(fc) + ' reached time out')
         return False
 
     if r.text == "True":
@@ -38,8 +37,7 @@ def deliver_state_others(fc, state):
         r = requests.get(url=URL(fc) + str(fc) + "/deliver_state",
                          params={"state": str(state)}, timeout=TIMEOUT_VALUE)
     except Exception as _:
-        print("Computer reached " + str(fc) + ' reached time out')
-
+        pass
 
 # ----------------------------- decide on action ----------------------------- #
 
@@ -49,7 +47,6 @@ def query_acceptable_action(fc, action):
         r = requests.get(url=URL(fc) + str(fc) + "/acceptable_action",
                          params={"action": str(action)}, timeout=TIMEOUT_VALUE)
     except Exception as _:
-        print("Computer reached " + str(fc) + ' reached time out')
         return False
 
     if r.text == "True":
@@ -62,7 +59,6 @@ def deliver_action_others(fc, action):
         r = requests.get(url=URL(fc) + str(fc) + "/deliver_action",
                          params={"action": str(action)}, timeout=TIMEOUT_VALUE)
     except Exception as _:
-        print("Computer reached " + str(fc) + ' reached time out')
         return False
 
 
@@ -196,12 +192,13 @@ class FlightComputer:
 
         return decided
 
-    # make assumptions
+    # make that the leader does not modify the state
     def acceptable_state(self, state):
         return True
 
     def acceptable_action(self, action):
         our_action = self.sample_next_action()
+
         accept = True
         for k in our_action.keys():
             if our_action[k] != action[k]:
@@ -260,9 +257,9 @@ class CrashingFlightComputer(FlightComputer):
         super(CrashingFlightComputer, self).__init__(state)
 
     def sample_next_action(self):
-        action = super(SlowFlightComputer, self).sample_next_action()
+        action = super(CrashingFlightComputer, self).sample_next_action()
         # 1% probability of a crash
-        if np.random.unifom() <= 0.01:
+        if np.random.uniform() <= 0.01:
             raise Exception("Flight computer crashed")
 
         return action

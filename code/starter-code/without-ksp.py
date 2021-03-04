@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 import time
 import requests
-from apiLauncher import *
+from api.apiLauncher import *
 from computers import *
 import json
 
@@ -78,7 +78,6 @@ def allocate_flight_computers(arguments):
 
 # Connect with Kerbal Space Program
 flight_computers = allocate_flight_computers(arguments)
-exit()
     
 def next_action(state):
     leader = select_leader()
@@ -98,18 +97,14 @@ try:
     while not complete:
         timestep += 1
         state = readout_state()
-        leader = select_leader(len(flight_computers))
-        if leader == None:
-            continue
-        state_decided = decide_on_state(leader, state)
+        state_decided = decide_on_state(state, arguments.flight_computers)
         if not state_decided:
             continue
-        action = sample_next_action(leader)
+        action = sample_next_action(arguments.flight_computers)
         if action is None:
             complete = True
             continue
-
-        if decide_on_action(leader, action):
+        if decide_on_action(action, arguments.flight_computers):
             execute_action(action)
         else:
             timestep -= 1

@@ -1,3 +1,13 @@
+# --------------------------------- computer --------------------------------- #
+# ------------------------------------- - ------------------------------------ #
+# @author: Sebati Ilias 
+# @author: Gomez  Herrera  Maria  Andrea  Liliana
+# ------------------------------------- - ------------------------------------ #
+# Description: This file is a server that using the REST api flask. 
+#  It reprensets a computer which represent a flighcomputer. 
+# ------------------------------------- - ------------------------------------ #
+# ------------------------------------- - ------------------------------------ #
+
 import numpy as np
 import time
 from flask import Flask, request
@@ -5,8 +15,6 @@ import sys
 import json
 import requests
 from computers import *
-import api.leader_election
-import api.ComputerApi
 from api.Computer import *
 
 # * disable th next 3 lines to have the code to be print in the terminal of the server (GET ...)
@@ -42,7 +50,6 @@ def handler_signal(signum, frame):
 
     # the interrupt was trigerred to send heartbeat
     if myComputer.trusted_leader ==  myComputer.myComputerNumber:
-        print("I am leader")
         myComputer.start_sending_heartbeat()
         return
 
@@ -58,6 +65,9 @@ signal.signal(signal.SIGALRM, handler_signal)
 @app.route("/" + str(myId) + "/initComputer")
 def initComputer():
     global myComputer
+
+    print("I init return")
+
 
     state = request.args.get('state')
     state = convert_string_dict(state)
@@ -128,7 +138,6 @@ def not_vote():
 
 @app.route('/' + myId + '/new_leader')
 def new_leader():
-
     term = int(request.args.get('term'))
     fc = int(request.args.get("fc"))
 
@@ -143,14 +152,15 @@ def new_leader():
 @app.route('/' + myId + '/heartbeat')
 def heartbeat():
 
-    print('heatbeat')
+    print('heartbeat')
     term = int(request.args.get('term'))
     fc = int(request.args.get("fc"))
     if fc == myComputer.trusted_leader:
         myComputer.received_heartbeat(term, fc)
     elif term > myComputer.term:
-        print("This is the case")
         myComputer.new_leader(term, fc)
+    else:
+        myComputer.begin_new_election()
 
     return "1"
 
@@ -161,10 +171,28 @@ def heartbeat():
 def decide_on_state():
 
     state = request.args.get('state')
-    state = convert_string_dict(state)
-    decided = myComputer.flighComputer.decide_on_state(state)
+    # I am the leader
+    if myComputer.trusted_leader == myComputer.myComputerNumber:
+        state = convert_string_dict(state)
 
-    return str(decided)
+        decided = myComputer.flighComputer.decide_on_state(state)
+        return str(decided)
+    
+    # I am not the leader
+    r = None
+    # ask the leader about this
+    fc = myComputer.trusted_leader
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/decide_on_state",
+                     params={"state": state}, timeout=TIMEOUT_VALUE*2)
+    except Exception:
+        # We start a new election trying to be leader
+        myComputer.stop_timeout()
+        myComputer.begin_new_election()
+        
+    if r is not None and  r.text == "True":
+        return "True"
+    return "False"
 
 
 @app.route("/" + str(myId) + "/acceptable_state")
@@ -189,12 +217,36 @@ def deliver_state_myself():
 
 @app.route("/" + str(myId) + "/decide_on_action")
 def decide_on_action():
-
     action = request.args.get('action')
-    action = convert_string_dict(action)
-    decided = myComputer.flighComputer.decide_on_action(action)
 
-    return str(decided)
+    # I am the leader
+    if myComputer.trusted_leader == myComputer.myComputerNumber:
+        action = convert_string_dict(action)
+        decided = None
+        try:
+            decided = myComputer.flighComputer.decide_on_action(action)
+        except  Exception:
+            return 'False'
+        
+        
+        return str(decided)
+    
+    # I am not the leader
+    r = None
+    # ask the leader about this
+    fc = myComputer.trusted_leader
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/decide_on_action",
+                     params={"action": action}, timeout=TIMEOUT_VALUE*2)
+    except Exception:
+        
+        # We start a new election trying to be leader
+        myComputer.stop_timeout()
+        myComputer.begin_new_election()
+        
+    if r is not None and  r.text == "True":
+        return "True"
+    return "False"
 
 
 def convert_0_bool(action):
@@ -215,8 +267,11 @@ def acceptable_action():
     action = request.args.get('action')
     action = convert_string_dict(action)
     convert_0_bool(action)
-
-    answer = myComputer.flighComputer.acceptable_action(action)
+    answer = None
+    try:
+        answer = myComputer.flighComputer.acceptable_action(action)
+    except Exception:
+        time.sleep(2)
 
     return str(answer)
 
@@ -225,9 +280,43 @@ def acceptable_action():
 
 @app.route("/" + str(myId) + "/sample_next_action")
 def sample_action():
-    if myComputer.flighComputer.sample_next_action() == None:
-        return 'None'
-    return str(myComputer.flighComputer.sample_next_action())
+
+    # I am leader 
+    if myComputer.trusted_leader == myComputer.myComputerNumber:
+        next_action =  None
+        try:
+            next_action = myComputer.flighComputer.sample_next_action()
+        except Exception:
+            return '0'
+
+
+        if next_action == None:
+            return 'None'
+
+        return str(next_action)
+
+    # ask the leader
+    r = None
+
+    fc = myComputer.trusted_leader
+    try:
+        r = requests.get(url=URL(fc) + str(fc) + "/sample_next_action", timeout=TIMEOUT_VALUE*2)
+    except Exception:
+        # We start a new election trying to be leader
+        myComputer.stop_timeout()
+        myComputer.begin_new_election()
+
+        return '0'
+
+
+    if r is None:
+        return '0'
+
+    if r.text == "None":
+        return "None"
+
+    return r.text
+
 
 
 @app.route("/" + str(myId) + "/deliver_action")
@@ -239,12 +328,6 @@ def deliver_action_myself():
     myComputer.flighComputer.deliver_action(action)
 
     return 'ok'
-
-
-# ------------------------------ respond to client ----------------------------- #
-@app.route("/" + str(myId) + "/who_is_leader")
-def my_leader():
-    return myComputer.trusted_leader
 
 
 # myId starts at 1.

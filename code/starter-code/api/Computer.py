@@ -1,4 +1,14 @@
-import api.ComputerApi
+# --------------------------------- Computer --------------------------------- #
+# ------------------------------------- - ------------------------------------ #
+# @author: Sebati Ilias 
+# @author: Gomez  Herrera  Maria  Andrea  Liliana
+# ------------------------------------- - ------------------------------------ #
+# Description: This file contains the class Computer which contains a 
+#  flightcomputer. The class Computer is responsible for the consensur, leader
+#  election, etc.
+# ------------------------------------- - ------------------------------------ #
+# ------------------------------------- - ------------------------------------ #
+
 from math import floor
 import random as rand
 from enum import Enum
@@ -44,13 +54,23 @@ class Computer:
 
         self.trusted_leader = None
 
+        # used to exponentially increase the range of the random timeout
+        self.number_failed_election = 0
+        # lost_current_election -> nobody won it
+        self.lost_current_election = False
         # set timeout leader
-        Computer.set_timeout_leader()
-
+        self.set_timeout_leader()
 
     def begin_new_election(self):
-        
+
         with lock:
+            # nobody won the current election r
+            if self.lost_current_election:
+                self.number_failed_election += 1
+            else:
+                self.number_failed_election = 0
+            self.lost_current_election = False
+
             # become a candidate and try to be leader
             self.state = State.candidate
 
@@ -62,8 +82,8 @@ class Computer:
             # Vote for myself
             # self.receive_vote()
 
-            # time to broadcast the messages
-            Computer.set_timer(300)
+            # Timeout to send the acks and everything
+            self.set_timeout_leader()
 
             # ask cluster' s votes
             self.broadcast_vote_request()
@@ -74,11 +94,10 @@ class Computer:
 
         # I have a strict majority
         if self.votes_for_me >= floor((len(self.flighComputer.peers) + 1) / 2) + 1:
-            print("I won " + str(self.term))
             self.i_won_election()
 
         # reset the timeout
-        Computer.set_timeout_leader()
+        self.set_timeout_leader()
 
     # A server gave the vote to someone else
     def refuse_vote(self, term):
@@ -91,15 +110,24 @@ class Computer:
         # I lose the election
         if self.votes_against_me >= floor((len(self.flighComputer.peers) + 1) / 2) + 1:
             self.state = State.follower
+            self.lost_current_election = True
+
 
         # reset the timeout
-        Computer.set_timeout_leader()
+        self.set_timeout_leader()
 
-    @staticmethod
-    def set_timeout_leader():
+    def set_timeout_leader(self):
         # First find the duration randomly of the timeout
-        duration = rand.randint(200, 500)  # in ms
-        # based on the number of election exp() number of election that we lost
+        start_range = 100 # ms 
+        end_range = 200 # ms 
+        # bound at 3 to not have a timeout >= 1.6 ms
+        if self.number_failed_election > 3:
+            end_range = end_range **3
+        elif self.number_failed_election > 1:
+            end_range = end_range **self.number_failed_election
+        
+            
+        duration = rand.randint(start_range, end_range)  # in ms
 
         Computer.set_timer(duration)
 
@@ -107,11 +135,10 @@ class Computer:
     @staticmethod
     def set_timer(duration):
         signal.setitimer(signal.ITIMER_REAL, duration/1000, 0)
-    
+
     @staticmethod
     def set_timeout_heartbeat():
         signal.setitimer(signal.ITIMER_REAL, 50/1000, 0)
-
 
     # self won the elections
     def i_won_election(self):
@@ -153,12 +180,15 @@ class Computer:
                 pass
 
     def new_leader(self, term, fc):
+        # lost_current_election -> nobody won it
+        self.lost_current_election = False
         self.state = State.follower
         self.trusted_leader = fc
         self.term = term
-        Computer.set_timeout_leader()
+        self.set_timeout_leader()
 
     def start_sending_heartbeat(self):
+        print("I am leader")
         for fc in self.flighComputer.peers:
             try:
                 requests.get(url=URL(fc) + str(fc) + "/heartbeat",
@@ -167,16 +197,15 @@ class Computer:
                              timeout=MINIMAL_TIMEOUT)
             except Exception:
                 pass
-            
-        Computer.set_timeout_heartbeat()
 
+        Computer.set_timeout_heartbeat()
 
     def received_heartbeat(self, term, fc):
 
         self.trusted_leader = fc
         self.term = term
 
-        Computer.set_timeout_leader()
+        self.set_timeout_leader()
 
     def stop_timeout(self):
         Computer.set_timer(0)

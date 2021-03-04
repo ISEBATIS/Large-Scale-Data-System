@@ -1,9 +1,11 @@
 import requests
 import json
 import time
+import random as rand
+
 URL_IP = "http://127.0.0.1:"
 STARTING_URL = 4999
-TIMEOUT_VALUE = 300 / 1000 # 300 ms
+TIMEOUT_VALUE = 1 # 1 ms
 
 def URL(fc):
     return URL_IP + str(STARTING_URL + fc) + "/"
@@ -33,14 +35,15 @@ def add_peer(fc, peer):
 
 # ------------------------------ decide on state ----------------------------- #
 
-def decide_on_state(fc, state):
-    r = None
+def decide_on_state(state, number_computers):
+    r = None 
+    # select a fligh computer randomly
+    fc = rand.randint(1, number_computers)
     try:
         r = requests.get(url=URL(fc) + str(fc) + "/decide_on_state",
                      params={"state": str(state)}, timeout=TIMEOUT_VALUE)
     except Exception as _:
-        print("Computer "  + str(fc) + ' did not replied')
-
+        pass
 
     if r is not None and  r.text == "True":
         return True
@@ -49,20 +52,23 @@ def decide_on_state(fc, state):
 
 # ---------------------------- sample_next_action ---------------------------- #
 
-def sample_next_action(fc):
+def sample_next_action(number_computers):
 
     r = None
-
+    # select a fligh computer randomly
+    fc = rand.randint(1, number_computers)
     try:
         r = requests.get(url=URL(fc) + str(fc) + "/sample_next_action", timeout=TIMEOUT_VALUE)
     except Exception as _:
-        print("Computer "  + str(fc) + ' did not replied')
+        pass
 
-    if r is None:
-        return None
+    if r is None or r.text == '0':
+        return 0 # the computer just did not answered
 
     if r.text == "None":
         return None
+        
+    # make it a dictionnary
     result = r.text
     result = result.replace("'", "\"")
     # Since False = 0 its ok
@@ -76,13 +82,17 @@ def sample_next_action(fc):
 
 # ----------------------------- decide_on_action ----------------------------- #
 
-def decide_on_action(fc, action):
+def decide_on_action(action, number_computers):
+    # The consensus did not converged at this timestep
+    if action == 0:
+        return False
     r = None
+    fc = rand.randint(1, number_computers)
     try:
         r = requests.get(url=URL(fc) + str(fc) + "/decide_on_action",
                      params={"action": str(action)}, timeout=TIMEOUT_VALUE)
     except Exception as _:
-        print("Computer "  + str(fc) + ' did not replied')
+        pass
 
     if r == None:
         return False 
@@ -91,48 +101,6 @@ def decide_on_action(fc, action):
         return True
     return False
 
-
-
-# ask the leader of 'fc' fligh computer
-def ask_leader(fc):
-    r = None
-    try:
-        r = requests.get(url=URL(fc) + str(fc) + "/who_is_leader", timeout=TIMEOUT_VALUE)
-    except Exception as _:
-        print("Computer "  + str(fc) + ' did not replied')
-    
-    if r == None:
-        return -1
-    
-    return int(r.text)
-
-
-
-# --------------------------- ask who is the leader -------------------------- #
-def select_leader(number_computers):
-    #  votedFor[i] = k if the computer i+1 is trusted to be the leader by k computers
-    votedFor = [0] * number_computers
-    
-    for fc in range(1, number_computers + 1):
-        trusted_leader = ask_leader(fc)
-        if trusted_leader == -1:
-            continue
-        
-        votedFor[trusted_leader-1] += 1
-    
-
-    for fc, votes in enumerate(votedFor):
-        # If we have a strict majority then votes is the leader
-        if votes >= floor(number_computers / 2) + 1:
-            return fc + 1
-    
-    return -1
-
-    ''' 
-        The client should not care about who is the leader. He should just take 
-
-
-    '''
 
 
 
