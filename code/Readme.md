@@ -19,7 +19,7 @@ The code is composed of three main files:
 
     -computer.py is the file representing a computer you can run it with the following command (you need first to go in the starter-code directory): 
     
-    $ python3 computer.py fligh_computer_
+    $ python3 computer.py fligh_computer_number
     
     fligh_computer_number is the number of the flight computer starting from 1 to n.  The servers (i.e: computer) do not print on the terminal (e.g. GET requests...) to be more efficiant and to see the errors. However, you can comment the lines 13, 14, and 15 to enable it again (of the computer.py file).
 
